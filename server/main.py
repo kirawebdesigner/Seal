@@ -29,6 +29,7 @@ from core import (
     MAX_FILE_SIZE,
     PUBLIC_BASE_URL,
     extract_video_id,
+    extract_with_fallback,
     sanitize_filename,
 )
 import jobs as jobstore
@@ -177,8 +178,6 @@ def download(job_id: str):
 @app.post("/info")
 def info(req: InfoRequest) -> dict:
     """Lightweight metadata probe (no download)."""
-    import yt_dlp
-
     url = str(req.url)
     opts = {
         "quiet": True,
@@ -188,8 +187,7 @@ def info(req: InfoRequest) -> dict:
         "socket_timeout": 30,
     }
     try:
-        with yt_dlp.YoutubeDL(opts) as ydl:
-            data = ydl.extract_info(url, download=False)
+        data = extract_with_fallback(url, opts, download=False)
     except Exception as exc:
         raise HTTPException(400, f"Could not fetch info: {exc}") from exc
     if not data:

@@ -1,4 +1,6 @@
 fastapi==0.115.6
 uvicorn==0.34.0
-yt-dlp>=2025.6.9
+# [default] extra is REQUIRED: it pulls in yt-dlp-ejs (the challenge solver
+# scripts yt-dlp needs for YouTube) plus requests/urllib3/websockets.
+yt-dlp[default]>=2026.8.19
 pydantic==2.10.4

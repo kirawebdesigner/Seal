@@ -1,9 +1,18 @@
 FROM python:3.11-slim
 
+ARG DENO_VERSION=2.9.7
+
 # ffmpeg is required by yt-dlp for audio extraction and video merging.
+# deno is the JS runtime yt-dlp needs to solve YouTube's player challenges (EJS);
+# without it extraction fails with "failed to extract player response".
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends ffmpeg ca-certificates \
-    && rm -rf /var/lib/apt/lists/*
+    && apt-get install -y --no-install-recommends ffmpeg ca-certificates curl unzip xz-utils \
+    && rm -rf /var/lib/apt/lists/* \
+    && curl -fsSL "https://github.com/denoland/deno/releases/download/v${DENO_VERSION}/deno-x86_64-unknown-linux-gnu.zip" -o /tmp/deno.zip \
+    && unzip -q /tmp/deno.zip -d /usr/local/bin \
+    && chmod +x /usr/local/bin/deno \
+    && rm /tmp/deno.zip \
+    && deno --version
 
 WORKDIR /app
 

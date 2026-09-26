@@ -10,9 +10,15 @@ DOWNLOAD_DIR = os.getenv("DOWNLOAD_DIR", os.path.join(os.path.dirname(__file__),
 MAX_CONCURRENT_JOBS = int(os.getenv("MAX_CONCURRENT_JOBS", "3"))
 PUBLIC_BASE_URL = os.getenv("PUBLIC_BASE_URL", "").rstrip("/")
 MAX_FILE_SIZE = int(os.getenv("MAX_FILE_SIZE", str(2 * 1024 * 1024 * 1024)))  # 2 GiB
+YTDL_COOKIES = os.getenv("YTDL_COOKIES")  # path to Netscape cookies file, optional
 
 AUDIO_PRESETS = {"mp3", "m4a", "opus", "wav", "best"}
 FORMATS = {"mp4", "webm", "mkv", "best"}
+
+# Player clients to try, in order, per attempt. YouTube periodically breaks
+# individual clients (po_token requirements, player changes, throttling), so we
+# rotate through a few rather than betting everything on one.
+PLAYER_CLIENTS = [c for c in os.getenv("PLAYER_CLIENTS", "default,tv,web_safari,mweb").split(",") if c]
 
 
 def sanitize_filename(name: str) -> str:
@@ -36,7 +42,7 @@ def extract_video_id(url: str) -> Optional[str]:
 
 def base_opts(jobs: "list[dict]") -> Dict[str, Any]:
     """Common yt-dlp options shared by every job."""
-    return {
+    opts: Dict[str, Any] = {
         "quiet": True,
         "no_warnings": True,
         "noprogress": True,
@@ -49,6 +55,9 @@ def base_opts(jobs: "list[dict]") -> Dict[str, Any]:
         "restrictfilenames": False,
         "windowsfilenames": True,
     }
+    if YTDL_COOKIES:
+        opts["cookiefile"] = YTDL_COOKIES
+    return opts
 
 
 def _progress_hook(d: dict, jobs: "list[dict]") -> None:  # pragma: no cover - set per job
@@ -107,3 +116,34 @@ def postprocessors_for(mode: str, preset: str) -> List[Dict[str, Any]]:
         {"key": "EmbedThumbnail", "already_have_thumbnail": False},
         {"key": "FFmpegMetadata"},
     ]
+
+
+def extract_with_fallback(
+    url: str, opts: Dict[str, Any], job: Optional[dict] = None, download: bool = True
+) -> Any:
+    """Run a yt-dlp extraction, retrying with a different YouTube player client
+    if one is broken/throttled. Individual clients fail regularly, so we rotate.
+
+    YouTube occasionally asks for a real session and surfaces it as a bot/
+    interstitial error. We do not handle that here automatically because the
+    server should not store or export browser cookies for users.
+    """
+    import yt_dlp
+
+    last_error: Optional[Exception] = None
+    for client in PLAYER_CLIENTS:
+        attempt_opts = dict(opts)
+        attempt_opts["extractor_args"] = {"youtube": {"player_client": [client]}}
+        try:
+            with yt_dlp.YoutubeDL(attempt_opts) as ydl:
+                return ydl.extract_info(url, download=download)
+        except Exception as exc:  # noqa: BLE001 - yt-dlp raises many types
+            last_error = exc
+            if job is not None:
+                job["error"] = f"player_client={client}: {exc}"
+            continue
+    raise last_error if last_error else JobRuntimeError("extraction failed")
+
+
+class JobRuntimeError(RuntimeError):
+    """Internal sentinel for the (unreachable) no-error fallback path."""

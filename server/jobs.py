@@ -10,15 +10,16 @@ import os
 import threading
 import time
 import uuid
+from pathlib import Path
 from typing import Any, Dict, Optional
 
 import yt_dlp
-from yt_dlp import YoutubeDL
 
 from core import (
     DOWNLOAD_DIR,
     MAX_CONCURRENT_JOBS,
     base_opts,
+    extract_with_fallback,
     format_for,
     postprocessors_for,
 )
@@ -125,20 +126,28 @@ def run_job(job_id: str) -> None:
         opts["merge_output_format"] = job["container"] if job["container"] != "best" else "mp4"
 
     try:
-        with YoutubeDL(opts) as ydl:
-            info = ydl.extract_info(job["url"], download=True)
-            if info is None:
-                raise JobError("No media found at that URL")
-            job["title"] = info.get("title") or job["title"]
-            requested = info.get("requested_downloads") or []
-            if requested:
-                filepath = requested[0].get("filepath") or requested[0].get("_filename")
-            else:
-                filepath = ydl.prepare_filename(info)
-            if filepath:
-                job["filename"] = os.path.basename(filepath)
-            job["status"] = "completed"
-            job["progress"] = 100.0
+        info = extract_with_fallback(job["url"], opts, job=job)
+        if info is None:
+            raise JobError("No media found at that URL")
+        job["title"] = info.get("title") or job["title"]
+        requested = info.get("requested_downloads") or []
+        if requested:
+            filepath = requested[0].get("filepath") or requested[0].get("_filename")
+        else:
+            # Fallback: yt-dlp sometimes omits requested_downloads; find the
+            # newest file in DOWNLOAD_DIR containing this video's id (the
+            # outtmpl always embeds " [<id>]" before the extension).
+            vid = info.get("id")
+            marker = f"[{vid}]"
+            candidates = (
+                [p for p in Path(DOWNLOAD_DIR).iterdir() if p.is_file() and marker in p.name]
+                if vid else []
+            )
+            filepath = str(max(candidates, key=lambda p: p.stat().st_mtime)) if candidates else None
+        if filepath:
+            job["filename"] = os.path.basename(filepath)
+        job["status"] = "completed"
+        job["progress"] = 100.0
     except yt_dlp.utils.DownloadCancelled:
         job["status"] = "canceled"
     except Exception as exc:  # yt-dlp raises many exception types

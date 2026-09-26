@@ -43,6 +43,8 @@ Notes for the free plan:
 
 ## Design notes
 
+- **YouTube compatibility:** yt-dlp needs a JavaScript runtime (deno, installed in the Dockerfile) and the `yt-dlp-ejs` challenge scripts (pulled in by `yt-dlp[default]` in `requirements.txt`) to solve YouTube's player challenges. If downloads start failing again with `failed to extract player response`, redeploy so the image rebuilds with the latest yt-dlp — stale yt-dlp versions are the usual culprit.
+- Player clients are rotated per attempt (`default,tv,web_safari,mweb`) so one broken YouTube client can't take the service down; override with the `PLAYER_CLIENTS` env var.
 - Jobs live in memory (dict + threads). One worker instance = predictable behavior. Move to Redis + RQ when you need multiple instances.
 - `MAX_FILE_SIZE` guards `/download/{id}` against serving huge files.
 - CORS defaults to `*`; set `CORS_ORIGINS=https://yourfrontend.com` to lock it down.

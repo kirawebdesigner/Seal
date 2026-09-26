@@ -28,6 +28,7 @@ from core import (
     MAX_CONCURRENT_JOBS,
     MAX_FILE_SIZE,
     PUBLIC_BASE_URL,
+    YTDL_COOKIES,
     extract_video_id,
     extract_with_fallback,
     is_cookie_or_auth_required_error,
@@ -109,7 +110,7 @@ def status(job_id: str) -> dict:
     if not job:
         raise HTTPException(404, "Unknown job id")
     payload = {
-        k: job[k]
+        k: job.get(k)
         for k in (
             "id", "status", "progress", "speed", "eta", "title",
             "filename", "error", "mode", "quality", "container",

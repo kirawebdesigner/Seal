@@ -19,6 +19,8 @@ FORMATS = {"mp4", "webm", "mkv", "best"}
 # individual clients (po_token requirements, player changes, throttling), so we
 # rotate through a few rather than betting everything on one.
 PLAYER_CLIENTS = [c for c in os.getenv("PLAYER_CLIENTS", "default,tv,web_safari,mweb").split(",") if c]
+YTDL_PROXY = os.getenv("YTDL_PROXY")  # http(s) proxy optional
+PLAYER_CLIENT_STR = os.getenv("PLAYER_CLIENT", "ios")
 
 
 def sanitize_filename(name: str) -> str:
@@ -55,8 +57,10 @@ def base_opts(jobs: "list[dict]") -> Dict[str, Any]:
         "restrictfilenames": False,
         "windowsfilenames": True,
     }
-    if YTDL_COOKIES:
+    if YTDL_COOKIES and os.path.isfile(YTDL_COOKIES):
         opts["cookiefile"] = YTDL_COOKIES
+    if YTDL_PROXY:
+        opts["proxy"] = YTDL_PROXY
     return opts
 
 
@@ -133,7 +137,24 @@ def extract_with_fallback(
     last_error: Optional[Exception] = None
     for client in PLAYER_CLIENTS:
         attempt_opts = dict(opts)
-        attempt_opts["extractor_args"] = {"youtube": {"player_client": [client]}}
+        if client and client != "default":
+            attempt_opts["extractor_args"] = {
+                "youtube": {
+                    "player_client": client,
+                    "skip": ["webpage"],
+                }
+            }
+        if client == "default":
+            attempt_opts["extractor_args"] = {
+                "youtube": {
+                    "player_client": ["ios", "android"],
+                    "skip": ["webpage"],
+                }
+            }
+        if YTDL_PROXY:
+            attempt_opts["proxy"] = YTDL_PROXY
+        attempt_opts["sleep_interval"] = 5
+        attempt_opts["max_sleep_interval"] = 10
         try:
             with yt_dlp.YoutubeDL(attempt_opts) as ydl:
                 return ydl.extract_info(url, download=download)

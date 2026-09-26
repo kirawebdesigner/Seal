@@ -147,3 +147,49 @@ def extract_with_fallback(
 
 class JobRuntimeError(RuntimeError):
     """Internal sentinel for the (unreachable) no-error fallback path."""
+
+
+def is_cookie_or_auth_required_error(exc: Exception) -> bool:
+    """Detect when yt-dlp is asking for cookies/a session instead of a
+    transient extraction failure.
+
+    YouTube surfaces this as 'Sign in to confirm you're not a bot' or as a
+    throttling / unavailable-player response when the request is classified
+    as suspicious.
+
+    Note: yt-dlp raises many exception shapes. This helper errs toward false
+    positives for unknown exceptions only when the message strongly matches a
+    cookie/auth class.
+    """
+    text = str(exc)
+    low = text.lower()
+    for marker in (
+        "sign in to confirm you",
+        "cookies-from-browser",
+        "use --cookies",
+        "not a bot",
+        "cookies file",
+        "cookie file",
+        "pass cookies",
+        "how-do-i-pass-cookies",
+        "i-pass-cookies-to-yt-dlp",
+        "exporting-youtube-cookies",
+        "request throttled",
+        "request was throttled",
+        "cw 청구",
+    ):
+        if marker in low:
+            return True
+    return False
+
+
+def yt_dlp_error_text(exc: Exception) -> str:
+    """Best-effort user-facing summary of a yt-dlp exception."""
+    text = str(exc)
+    if not text:
+        return exc.__class__.__name__
+    # Collapse multi-line traceback noise down to the first readable line.
+    lines = [ln.strip() for ln in text.splitlines() if ln.strip()]
+    if not lines:
+        return exc.__class__.__name__
+    return lines[0]

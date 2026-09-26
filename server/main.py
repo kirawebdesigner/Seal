@@ -30,7 +30,9 @@ from core import (
     PUBLIC_BASE_URL,
     extract_video_id,
     extract_with_fallback,
+    is_cookie_or_auth_required_error,
     sanitize_filename,
+    yt_dlp_error_text,
 )
 import jobs as jobstore
 
@@ -111,7 +113,7 @@ def status(job_id: str) -> dict:
         for k in (
             "id", "status", "progress", "speed", "eta", "title",
             "filename", "error", "mode", "quality", "container",
-            "created_at", "finished_at",
+            "requires_cookies", "created_at", "finished_at",
         )
     }
     if job["status"] == "completed" and PUBLIC_BASE_URL:
@@ -189,7 +191,14 @@ def info(req: InfoRequest) -> dict:
     try:
         data = extract_with_fallback(url, opts, download=False)
     except Exception as exc:
-        raise HTTPException(400, f"Could not fetch info: {exc}") from exc
+        detail = f"Could not fetch info: {exc}"
+        if is_cookie_or_auth_required_error(exc):
+            detail = (
+                "YouTube asked for authentication/cookies for this video. "
+                "The server cannot export browser cookies for you; if this is your own "
+                "account, supply a Netscape-format cookie file via the YTDL_COOKIES env var."
+            )
+        raise HTTPException(400, detail) from exc
     if not data:
         raise HTTPException(400, "No media found at that URL")
 
@@ -220,6 +229,7 @@ def info(req: InfoRequest) -> dict:
         "webpage_url": data.get("webpage_url"),
         "is_youtube": video_id is not None,
         "formats": formats[:40],
+        "cookies_supported": bool(YTDL_COOKIES),
     }
 
 

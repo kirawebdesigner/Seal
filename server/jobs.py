@@ -21,6 +21,7 @@ from core import (
     base_opts,
     extract_with_fallback,
     format_for,
+    is_cookie_or_auth_required_error,
     postprocessors_for,
 )
 
@@ -152,7 +153,8 @@ def run_job(job_id: str) -> None:
         job["status"] = "canceled"
     except Exception as exc:  # yt-dlp raises many exception types
         job["status"] = "error"
-        job["error"] = str(exc) or exc.__class__.__name__
+        job["error"] = yt_dlp_error_text(exc)
+        job["requires_cookies"] = bool(is_cookie_or_auth_required_error(exc))
     finally:
         job["finished_at"] = time.time()
         job["speed"] = None

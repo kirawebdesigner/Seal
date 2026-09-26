@@ -1,0 +1,20 @@
+services:
+  - type: web
+    name: seal-download-api
+    runtime: docker
+    plan: free
+    region: oregon
+    # Dockerfile lives at the repo root, so these are just the defaults.
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    healthCheckPath: /health
+    autoDeploy: true
+    envVars:
+      - key: PUBLIC_BASE_URL
+        sync: false
+      - key: MAX_CONCURRENT_JOBS
+        value: "3"
+      - key: MAX_FILE_SIZE
+        value: "2147483648"
+      - key: CORS_ORIGINS
+        value: "*"

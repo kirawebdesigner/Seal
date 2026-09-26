@@ -17,3 +17,10 @@
 local.properties
 /keystore.properties
 .kotlin
+
+# Seal Download API (server/)
+server/__pycache__/
+server/**/__pycache__/
+server/.venv/
+server/venv/
+server/downloads/

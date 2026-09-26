@@ -56,6 +56,12 @@ English
 </div>
 
 
+## 🖥️ Backend Server (`server/`)
+
+This repo also ships a **FastAPI + yt-dlp backend** (`server/`) that exposes Seal-style downloading as an HTTP API: paste a YouTube link, start an audio/video job, poll progress, and stream the finished file. It deploys to Render as a Docker service (see [`render.yaml`](render.yaml) and [`server/README.md`](server/README.md)).
+
+Quick start: `POST /download {"url": "...", "mode": "audio", "container": "mp3"}` → poll `GET /status/{id}` → `GET /download/{id}`.
+
 ## 📱 Screenshots
 
 <div align="center">
